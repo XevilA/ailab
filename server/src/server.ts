@@ -6,7 +6,7 @@ import {
   HarmBlockThreshold,
   GenerateContentResponse,
   FinishReason,
-  SafetyRating,
+  SafetyRating, // <<< สำคัญ: ต้อง Import SafetyRating มาด้วย
 } from "@google/generative-ai";
 import dotenv from "dotenv";
 import cors from "cors";
@@ -91,7 +91,7 @@ app.post(
       const promptFeedback = response?.promptFeedback;
       const candidate = response?.candidates?.[0];
       const finishReason = candidate?.finishReason;
-      const safetyRatings = candidate?.safetyRatings;
+      const safetyRatings = candidate?.safetyRatings; // This is type SafetyRating[] | undefined
 
       if (promptFeedback?.blockReason) {
         const blockReason = promptFeedback.blockReason;
@@ -113,10 +113,12 @@ app.post(
         let detail = "";
         if (finishReason === FinishReason.SAFETY && safetyRatings) {
           const harmfulCategories = safetyRatings
+            // VVVVVV แก้ไขตรงนี้: เพิ่ม Type Annotation VVVVVV
             .filter(
-              (r) => r.probability !== "NEGLIGIBLE" && r.probability !== "LOW",
+              (r: SafetyRating) =>
+                r.probability !== "NEGLIGIBLE" && r.probability !== "LOW",
             )
-            .map((r) => `${r.category} (${r.probability})`)
+            .map((r: SafetyRating) => `${r.category} (${r.probability})`)
             .join(", ");
           if (harmfulCategories)
             detail = ` Potentially harmful categories detected: ${harmfulCategories}`;
@@ -140,11 +142,13 @@ app.post(
           finishReason,
         );
         if (safetyRatings) {
+          // VVVVVV แก้ไขตรงนี้: เพิ่ม Type Annotation VVVVVV
           const harmfulCategories = safetyRatings
             .filter(
-              (r) => r.probability !== "NEGLIGIBLE" && r.probability !== "LOW",
+              (r: SafetyRating) =>
+                r.probability !== "NEGLIGIBLE" && r.probability !== "LOW",
             )
-            .map((r) => r.category)
+            .map((r: SafetyRating) => r.category)
             .join(", ");
           if (harmfulCategories) {
             console.warn(
@@ -172,6 +176,7 @@ app.post(
 app.post(
   "/api/execute",
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    // ... (โค้ดส่วน /api/execute ไม่มีการเปลี่ยนแปลงเรื่อง Type ในส่วนนี้) ...
     const { code, language } = req.body;
     console.log(`[Execute API] Received request for language: ${language}`);
 
