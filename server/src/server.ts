@@ -59,21 +59,44 @@ const chatModel = genAI.getGenerativeModel({
 });
 
 // --- Middleware ---
+
+// +++++ DEBUGGING: Log incoming request origin +++++
+app.use((req, res, next) => {
+  // Log the origin header if it exists. In production, also consider logging other headers
+  // like 'Referer' or 'Host' for more context, but be mindful of privacy.
+  console.log(`[DEBUG] Incoming Request Origin: ${req.headers.origin}`);
+  // Log the method and path for context
+  console.log(`[DEBUG] Request Path: ${req.method} ${req.path}`);
+  next(); // Continue to the next middleware (CORS)
+});
+// +++++ END DEBUGGING +++++
+
+// Configure CORS - Only allow requests from your specific frontend domain
 app.use(
   cors({
     origin: FRONTEND_URL,
+    methods: ["GET", "POST", "OPTIONS"], // Allow necessary methods (OPTIONS is important for preflight requests)
+    allowedHeaders: ["Content-Type", "Authorization"], // Allow necessary headers
+    credentials: true, // If you were using cookies/sessions, though not in this app
   }),
 );
-console.log(`CORS enabled for origin: ${FRONTEND_URL}`);
+// Log the CORS configuration being used for confirmation
+console.log(`[INFO] CORS configured to allow origin: ${FRONTEND_URL}`);
+
+// Parse JSON request bodies
 app.use(express.json());
 
 // --- API Route: Chat with Gemini ---
 app.post(
   "/api/chat",
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    console.log("[INFO] --- /api/chat endpoint hit! ---"); // Log when the route is accessed
     try {
       const { prompt } = req.body;
       if (!prompt || typeof prompt !== "string" || prompt.trim() === "") {
+        console.warn(
+          "[WARN] /api/chat: Bad Request - Prompt is missing or invalid.",
+        );
         res
           .status(400)
           .json({
@@ -81,9 +104,10 @@ app.post(
           });
         return;
       }
+      // Log only a part of the prompt for brevity and potential privacy
       console.log(
-        "[Chat API] Received prompt:",
-        prompt.substring(0, 100) + (prompt.length > 100 ? "..." : ""),
+        "[INFO] /api/chat: Received prompt (start):",
+        prompt.substring(0, 50) + (prompt.length > 50 ? "..." : ""),
       );
 
       const result = await chatModel.generateContent(prompt);
@@ -91,11 +115,13 @@ app.post(
       const promptFeedback = response?.promptFeedback;
       const candidate = response?.candidates?.[0];
       const finishReason = candidate?.finishReason;
-      const safetyRatings = candidate?.safetyRatings; // This is type SafetyRating[] | undefined
+      const safetyRatings = candidate?.safetyRatings;
 
       if (promptFeedback?.blockReason) {
         const blockReason = promptFeedback.blockReason;
-        console.warn(`[Chat API] Prompt blocked due to: ${blockReason}`);
+        console.warn(
+          `[WARN] /api/chat: Prompt blocked by safety settings. Reason: ${blockReason}`,
+        );
         res
           .status(400)
           .json({
@@ -109,40 +135,41 @@ app.post(
         finishReason !== FinishReason.STOP &&
         finishReason !== FinishReason.MAX_TOKENS
       ) {
-        console.warn(`[Chat API] Generation stopped due to: ${finishReason}`);
+        console.warn(
+          `[WARN] /api/chat: Generation stopped abnormally. Reason: ${finishReason}`,
+        );
         let detail = "";
         if (finishReason === FinishReason.SAFETY && safetyRatings) {
           const harmfulCategories = safetyRatings
-            // VVVVVV แก้ไขตรงนี้: เพิ่ม Type Annotation VVVVVV
             .filter(
               (r: SafetyRating) =>
                 r.probability !== "NEGLIGIBLE" && r.probability !== "LOW",
             )
-            .map((r: SafetyRating) => `${r.category} (${r.probability})`)
+            .map((r: SafetyRating) => `${r.category}(${r.probability})`)
             .join(", ");
           if (harmfulCategories)
-            detail = ` Potentially harmful categories detected: ${harmfulCategories}`;
+            detail = ` Harmful categories detected: ${harmfulCategories}`;
+          console.warn(`[WARN] /api/chat: Safety block details: ${detail}`);
         }
         res
           .status(500)
           .json({
-            error: `Generation failed or was stopped: ${finishReason}.${detail}`,
+            error: `Generation failed or stopped: ${finishReason}.${detail}`,
           });
         return;
       }
 
       const textContent = candidate?.content?.parts?.[0]?.text;
       if (textContent !== undefined && textContent !== null) {
-        console.log("[Chat API] Sending successful response.");
+        console.log("[INFO] /api/chat: Sending successful response to client.");
         res.json({ response: textContent });
         return;
       } else {
         console.error(
-          "[Chat API] Could not extract text content, even though finishReason was",
+          "[ERROR] /api/chat: Could not extract text content from Gemini response. Finish reason:",
           finishReason,
         );
         if (safetyRatings) {
-          // VVVVVV แก้ไขตรงนี้: เพิ่ม Type Annotation VVVVVV
           const harmfulCategories = safetyRatings
             .filter(
               (r: SafetyRating) =>
@@ -152,7 +179,7 @@ app.post(
             .join(", ");
           if (harmfulCategories) {
             console.warn(
-              `[Chat API] Warning: Finish reason was ${finishReason}, but no text found. High-probability safety categories: ${harmfulCategories}`,
+              `[WARN] /api/chat: No text found despite finish reason ${finishReason}. High-prob safety categories: ${harmfulCategories}`,
             );
           }
         }
@@ -164,10 +191,15 @@ app.post(
         return;
       }
     } catch (error: any) {
-      console.error("[Chat API] Error:", error);
+      console.error(
+        "[ERROR] /api/chat: Unhandled error in route handler:",
+        error,
+      );
+      // Avoid sending detailed internal errors to the client in production
       res
         .status(500)
-        .json({ error: "Server error communicating with Gemini API." });
+        .json({ error: "Server error while communicating with Gemini API." });
+      // Optionally pass to the default error handler for more logging: next(error);
     }
   },
 );
@@ -176,11 +208,16 @@ app.post(
 app.post(
   "/api/execute",
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-    // ... (โค้ดส่วน /api/execute ไม่มีการเปลี่ยนแปลงเรื่อง Type ในส่วนนี้) ...
+    console.log("[INFO] --- /api/execute endpoint hit! ---"); // Log when the route is accessed
     const { code, language } = req.body;
-    console.log(`[Execute API] Received request for language: ${language}`);
+    console.log(
+      `[INFO] /api/execute: Received request for language: ${language}`,
+    );
 
     if (!code || typeof code !== "string") {
+      console.warn(
+        "[WARN] /api/execute: Bad Request - Code is missing or invalid.",
+      );
       res
         .status(400)
         .json({
@@ -191,7 +228,9 @@ app.post(
       return;
     }
     if (language !== "python") {
-      console.warn(`[Execute API] Language '${language}' not supported.`);
+      console.warn(
+        `[WARN] /api/execute: Language '${language}' not supported.`,
+      );
       res
         .status(400)
         .json({
@@ -203,7 +242,7 @@ app.post(
     }
 
     console.warn(
-      "[Execute API] SIMULATING Python execution. No real code is being run.",
+      "[WARN] /api/execute: SIMULATING Python execution. No real code is being run.",
     );
     try {
       await new Promise((resolve) =>
@@ -214,9 +253,10 @@ app.post(
       let simulatedStderr: string | null = null;
       let simulatedError: string | null = null;
 
+      // Basic simulations...
       if (code.match(/error|exception|raise/i)) {
         simulatedStdout = null;
-        simulatedStderr = `Simulated stderr: Code appears to intentionally raise an error.`;
+        simulatedStderr = `Simulated stderr: Code might raise an error.`;
       } else if (code.match(/import\s+\w+/)) {
         simulatedStdout += "\n(Simulated import detected)";
       } else if (code.trim().toLowerCase() === "print('hello world')") {
@@ -227,21 +267,17 @@ app.post(
       if (code.length > 1000) {
         simulatedStdout = null;
         simulatedStderr = null;
-        simulatedError =
-          "Simulated Execution Error: Code exceeds simulation length limit.";
-        console.warn(`[Execute API] Simulation error: ${simulatedError}`);
+        simulatedError = "Simulated Execution Error: Code too long.";
+        console.warn(
+          `[WARN] /api/execute: Simulation error - ${simulatedError}`,
+        );
         res
           .status(400)
-          .json({
-            stdout: simulatedStdout,
-            stderr: simulatedStderr,
-            error: simulatedError,
-          });
-        return;
+          .json({ stdout, stderr: simulatedStderr, error: simulatedError });
+        return; // Corrected variable name here
       }
-      console.log(
-        "[Execute API] Simulation complete. Sending simulated results.",
-      );
+
+      console.log("[INFO] /api/execute: Simulation complete. Sending results.");
       res
         .status(200)
         .json({
@@ -250,7 +286,10 @@ app.post(
           error: simulatedError,
         });
     } catch (e: any) {
-      console.error("[Execute API] Error during simulation process:", e);
+      console.error(
+        "[ERROR] /api/execute: Error during simulation process:",
+        e,
+      );
       res
         .status(500)
         .json({
@@ -264,12 +303,15 @@ app.post(
 
 // --- Basic Health Check Route ---
 app.get("/health", (req: Request, res: Response) => {
+  console.log("[INFO] /health endpoint hit!"); // Log health check access
+  res.setHeader("Cache-Control", "no-cache"); // Prevent caching of health status
   res.status(200).send("OK");
 });
 
-// --- Error Handling Middleware ---
+// --- Error Handling Middleware (Basic - Catches errors passed via next()) ---
 app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
-  console.error("Unhandled Error caught by middleware:", err.stack);
+  console.error("[ERROR] Unhandled Error caught by middleware:", err.stack);
+  // Only send generic error in production
   if (!res.headersSent) {
     res.status(500).json({ error: "Internal Server Error" });
   }
@@ -277,13 +319,15 @@ app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
 
 // --- Start Server ---
 app.listen(port, () => {
-  console.log(`✨ Dotmini AI Lab Backend running`);
-  console.log(`   - Listening on port: ${port}`);
-  console.log(`   - Accepting requests from: ${FRONTEND_URL}`);
-  console.log(`   - Chat Endpoint: POST /api/chat`);
-  console.log(`   - Execute Endpoint: POST /api/execute (SIMULATED)`);
-  console.log(`   - Health Check: GET /health`);
+  console.log(`[INFO] ✨ Dotmini AI Lab Backend running`);
+  console.log(`[INFO]    - Listening on port: ${port}`);
+  console.log(`[INFO]    - Accepting requests from: ${FRONTEND_URL}`);
+  console.log(`[INFO]    - Chat Endpoint: POST /api/chat`);
+  console.log(`[INFO]    - Execute Endpoint: POST /api/execute (SIMULATED)`);
+  console.log(`[INFO]    - Health Check: GET /health`);
   if (!process.env.GOOGLE_API_KEY) {
-    console.warn("   - WARNING: GOOGLE_API_KEY is not set!");
+    console.warn("[WARN]    - GOOGLE_API_KEY is not set in environment!");
+  } else {
+    console.log("[INFO]    - GOOGLE_API_KEY is set.");
   }
 });
