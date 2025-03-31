@@ -6,29 +6,27 @@ import {
   HarmBlockThreshold,
   GenerateContentResponse,
   FinishReason,
-  SafetyRating, // <<< สำคัญ: ต้อง Import SafetyRating มาด้วย
+  SafetyRating,
 } from "@google/generative-ai";
 import dotenv from "dotenv";
 import cors from "cors";
 
-dotenv.config(); // Load .env file variables
+dotenv.config();
 
 const app = express();
 const port = process.env.PORT || 3001;
 
-// --- Configuration ---
 const API_KEY = process.env.GOOGLE_API_KEY;
-const MODEL_NAME = "gemini-1.5-pro-latest"; // Or your desired Gemini model
-const FRONTEND_URL = process.env.FRONTEND_URL || "http://localhost:5173"; // Default for local dev
+const MODEL_NAME = "gemini-1.5-pro-latest";
+const FRONTEND_URL = process.env.FRONTEND_URL || "http://localhost:5173";
 
 if (!API_KEY) {
   console.error(
     "CRITICAL ERROR: GOOGLE_API_KEY environment variable is not set.",
   );
-  process.exit(1); // Exit if API key is missing
+  process.exit(1);
 }
 
-// --- Initialize Google Generative AI ---
 const genAI = new GoogleGenerativeAI(API_KEY);
 const chatModel = genAI.getGenerativeModel({
   model: MODEL_NAME,
@@ -58,39 +56,26 @@ const chatModel = genAI.getGenerativeModel({
   },
 });
 
-// --- Middleware ---
-
-// +++++ DEBUGGING: Log incoming request origin +++++
 app.use((req, res, next) => {
-  // Log the origin header if it exists. In production, also consider logging other headers
-  // like 'Referer' or 'Host' for more context, but be mindful of privacy.
   console.log(`[DEBUG] Incoming Request Origin: ${req.headers.origin}`);
-  // Log the method and path for context
   console.log(`[DEBUG] Request Path: ${req.method} ${req.path}`);
-  next(); // Continue to the next middleware (CORS)
+  next();
 });
-// +++++ END DEBUGGING +++++
-
-// Configure CORS - Only allow requests from your specific frontend domain
 app.use(
   cors({
     origin: FRONTEND_URL,
-    methods: ["GET", "POST", "OPTIONS"], // Allow necessary methods (OPTIONS is important for preflight requests)
-    allowedHeaders: ["Content-Type", "Authorization"], // Allow necessary headers
-    credentials: true, // If you were using cookies/sessions, though not in this app
+    methods: ["GET", "POST", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
+    credentials: true,
   }),
 );
-// Log the CORS configuration being used for confirmation
 console.log(`[INFO] CORS configured to allow origin: ${FRONTEND_URL}`);
-
-// Parse JSON request bodies
 app.use(express.json());
 
-// --- API Route: Chat with Gemini ---
 app.post(
   "/api/chat",
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-    console.log("[INFO] --- /api/chat endpoint hit! ---"); // Log when the route is accessed
+    console.log("[INFO] --- /api/chat endpoint hit! ---");
     try {
       const { prompt } = req.body;
       if (!prompt || typeof prompt !== "string" || prompt.trim() === "") {
@@ -104,7 +89,6 @@ app.post(
           });
         return;
       }
-      // Log only a part of the prompt for brevity and potential privacy
       console.log(
         "[INFO] /api/chat: Received prompt (start):",
         prompt.substring(0, 50) + (prompt.length > 50 ? "..." : ""),
@@ -129,7 +113,6 @@ app.post(
           });
         return;
       }
-
       if (
         finishReason &&
         finishReason !== FinishReason.STOP &&
@@ -158,7 +141,6 @@ app.post(
           });
         return;
       }
-
       const textContent = candidate?.content?.parts?.[0]?.text;
       if (textContent !== undefined && textContent !== null) {
         console.log("[INFO] /api/chat: Sending successful response to client.");
@@ -195,20 +177,17 @@ app.post(
         "[ERROR] /api/chat: Unhandled error in route handler:",
         error,
       );
-      // Avoid sending detailed internal errors to the client in production
       res
         .status(500)
         .json({ error: "Server error while communicating with Gemini API." });
-      // Optionally pass to the default error handler for more logging: next(error);
     }
   },
 );
 
-// --- API Route: Code Execution (SIMULATED) ---
 app.post(
   "/api/execute",
   async (req: Request, res: Response, next: NextFunction): Promise<void> => {
-    console.log("[INFO] --- /api/execute endpoint hit! ---"); // Log when the route is accessed
+    console.log("[INFO] --- /api/execute endpoint hit! ---");
     const { code, language } = req.body;
     console.log(
       `[INFO] /api/execute: Received request for language: ${language}`,
@@ -253,7 +232,6 @@ app.post(
       let simulatedStderr: string | null = null;
       let simulatedError: string | null = null;
 
-      // Basic simulations...
       if (code.match(/error|exception|raise/i)) {
         simulatedStdout = null;
         simulatedStderr = `Simulated stderr: Code might raise an error.`;
@@ -264,17 +242,24 @@ app.post(
       } else if (code.trim() === "") {
         simulatedStdout = "(No code to execute)";
       }
+
       if (code.length > 1000) {
-        simulatedStdout = null;
-        simulatedStderr = null;
+        simulatedStdout = null; // ต้องประกาศค่าก่อนใช้ในบรรทัดล่าง (แม้จะเป็น null)
+        simulatedStderr = null; // ต้องประกาศค่าก่อนใช้ในบรรทัดล่าง (แม้จะเป็น null)
         simulatedError = "Simulated Execution Error: Code too long.";
         console.warn(
           `[WARN] /api/execute: Simulation error - ${simulatedError}`,
         );
+        // VVVVVV แก้ไขแล้ว VVVVVV
         res
           .status(400)
-          .json({ stdout, stderr: simulatedStderr, error: simulatedError });
-        return; // Corrected variable name here
+          .json({
+            stdout: null,
+            stderr: simulatedStderr,
+            error: simulatedError,
+          });
+        // ^^^^^^ แก้ไขแล้ว ^^^^^^
+        return;
       }
 
       console.log("[INFO] /api/execute: Simulation complete. Sending results.");
@@ -301,32 +286,25 @@ app.post(
   },
 );
 
-// --- Basic Health Check Route ---
 app.get("/health", (req: Request, res: Response) => {
-  console.log("[INFO] /health endpoint hit!"); // Log health check access
-  res.setHeader("Cache-Control", "no-cache"); // Prevent caching of health status
+  console.log("[INFO] /health endpoint hit!");
+  res.setHeader("Cache-Control", "no-cache");
   res.status(200).send("OK");
 });
-
-// --- Error Handling Middleware (Basic - Catches errors passed via next()) ---
 app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
   console.error("[ERROR] Unhandled Error caught by middleware:", err.stack);
-  // Only send generic error in production
   if (!res.headersSent) {
     res.status(500).json({ error: "Internal Server Error" });
   }
 });
 
-// --- Start Server ---
 app.listen(port, () => {
   console.log(`[INFO] ✨ Dotmini AI Lab Backend running`);
   console.log(`[INFO]    - Listening on port: ${port}`);
   console.log(`[INFO]    - Accepting requests from: ${FRONTEND_URL}`);
-  console.log(`[INFO]    - Chat Endpoint: POST /api/chat`);
-  console.log(`[INFO]    - Execute Endpoint: POST /api/execute (SIMULATED)`);
-  console.log(`[INFO]    - Health Check: GET /health`);
+  // ... (rest of the startup logs) ...
   if (!process.env.GOOGLE_API_KEY) {
-    console.warn("[WARN]    - GOOGLE_API_KEY is not set in environment!");
+    console.warn("[WARN]    - GOOGLE_API_KEY is not set!");
   } else {
     console.log("[INFO]    - GOOGLE_API_KEY is set.");
   }
