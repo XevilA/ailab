@@ -1,0 +1,167 @@
+/* client/src/components/ChatInterface.module.css */
+.chatContainer {
+    flex-grow: 1;
+    overflow-y: auto;
+    padding: var(--spacing-l);
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-m);
+    /* position: relative; /* Removed: Button positioned relative to app-container */
+}
+
+.inputArea {
+    display: flex;
+    padding: var(--spacing-m) var(--spacing-l);
+    border-top: 1px solid var(--border-color);
+    background-color: var(--card-bg);
+    gap: var(--spacing-m);
+    align-items: flex-end;
+}
+
+.inputField {
+    flex-grow: 1;
+    padding: var(--spacing-m) var(--spacing-l);
+    border-radius: var(--border-radius-l);
+    border: 1px solid var(--input-border);
+    background-color: var(--input-bg);
+    color: var(--text-color);
+    font-size: 1em;
+    line-height: 1.5;
+    resize: none;
+    min-height: 48px;
+    max-height: 200px;
+    transition:
+        border-color var(--transition-fast),
+        box-shadow var(--transition-fast);
+}
+.inputField:focus {
+    border-color: var(--accent-primary);
+    outline: none;
+    box-shadow: 0 0 0 3px hsla(from var(--accent-primary) h s l / 0.3);
+}
+
+.sendButton {
+    padding: var(--spacing-m) var(--spacing-l);
+    border-radius: var(--border-radius-l);
+    background-color: var(--accent-primary);
+    color: var(--text-on-primary);
+    border: none;
+    cursor: pointer;
+    font-size: 1em;
+    font-weight: 500;
+    line-height: 1.5;
+    height: 48px;
+    transition:
+        background-color var(--transition-std),
+        opacity var(--transition-std);
+    flex-shrink: 0;
+}
+.sendButton:hover:not(:disabled) {
+    background-color: hsl(from var(--accent-primary) h s calc(l - 5%));
+}
+@media (prefers-color-scheme: light) {
+    .sendButton:hover:not(:disabled) {
+        background-color: hsl(from var(--accent-primary) h s calc(l - 5%));
+    }
+}
+.sendButton:disabled {
+    background-color: var(--border-color);
+    color: var(--icon-color);
+    cursor: not-allowed;
+    opacity: 0.7;
+}
+
+.loadingIndicator {
+    text-align: center;
+    padding: var(--spacing-l);
+    color: var(--icon-color);
+    font-style: italic;
+    font-size: 0.9em;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: var(--spacing-s);
+}
+.loadingIndicator::before {
+    content: "●";
+    display: inline-block;
+    animation: pulse 1.5s infinite ease-in-out;
+    margin-right: var(--spacing-s);
+}
+@keyframes pulse {
+    0%,
+    100% {
+        opacity: 0.5;
+    }
+    50% {
+        opacity: 1;
+    }
+}
+
+.clearButton {
+    position: absolute;
+    top: 10px;
+    right: 15px;
+    background: var(--card-bg);
+    color: var(--icon-color);
+    border: 1px solid var(--border-color);
+    padding: var(--spacing-xs) var(--spacing-s);
+    border-radius: var(--border-radius-m);
+    font-size: 0.85em;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: var(--spacing-xs);
+    z-index: 10;
+    transition:
+        background-color var(--transition-fast),
+        color var(--transition-fast),
+        border-color var(--transition-fast);
+}
+.clearButton:hover {
+    background-color: var(--icon-hover-bg);
+    border-color: var(--icon-hover-bg);
+    color: var(--text-color);
+}
+.clearButton svg {
+    width: 14px;
+    height: 14px;
+}
+
+.emptyState {
+    text-align: center;
+    padding: var(--spacing-xl) var(--spacing-l);
+    color: var(--icon-color);
+    font-size: 1em;
+    margin: auto;
+}
+
+@media (max-width: 600px) {
+    .inputArea {
+        padding: var(--spacing-s) var(--spacing-m);
+        gap: var(--spacing-s);
+    }
+    .inputField {
+        padding: var(--spacing-s) var(--spacing-m);
+        min-height: 40px;
+        border-radius: var(--border-radius-m);
+    }
+    .sendButton {
+        padding: var(--spacing-s) var(--spacing-m);
+        height: 40px;
+        border-radius: var(--border-radius-m);
+    }
+    .chatContainer {
+        padding: var(--spacing-m);
+    }
+    .clearButton {
+        top: 5px;
+        right: 10px;
+        padding: 4px 6px;
+        font-size: 0.8em;
+    }
+    .clearButton svg {
+        width: 12px;
+        height: 12px;
+    }
+}

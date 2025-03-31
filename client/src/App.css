@@ -1,0 +1,31 @@
+/* client/src/App.css */
+.app-container {
+    display: flex;
+    flex-direction: column;
+    flex-grow: 1; /* Take remaining vertical space */
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius-l); /* Softer corners */
+    overflow: hidden; /* Clip children to rounded corners */
+    background-color: var(--card-bg);
+    margin-bottom: var(--spacing-l); /* Space at the bottom */
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05); /* Subtle shadow */
+    position: relative; /* Needed for absolute positioning of clear button */
+}
+
+@media (prefers-color-scheme: dark) {
+    .app-container {
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2); /* Slightly stronger shadow for dark */
+    }
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .app-container {
+        border-radius: 0; /* Full width on mobile */
+        border-left: none;
+        border-right: none;
+        border-bottom: none;
+        margin-bottom: 0;
+        box-shadow: none;
+    }
+}
