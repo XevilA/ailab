@@ -8,7 +8,7 @@ import React, {
 } from "react";
 import ChatMessage from "./ChatMessage";
 import styles from "./ChatInterface.module.css";
-import { FiTrash2, FiPlay } from "react-icons/fi";
+import { FiTrash2 } from "react-icons/fi"; // <--- เหลือแค่นี้
 
 interface Message {
   id: number;
